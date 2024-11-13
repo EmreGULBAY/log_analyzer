@@ -1,10 +1,30 @@
 import { Client } from "@elastic/elasticsearch";
 import dotenv from "dotenv";
 import { ElasticError } from "../Models/ElasticError";
-import { initLog, finalLog, actionTypes, channelCodes, statusTypes } from "../Models/LogModels";
+import {
+  initLog,
+  finalLog,
+  actionTypes,
+  channelCodes,
+  statusTypes,
+} from "../Models/LogModels";
 import { v4 as uuidv4 } from "uuid";
 
 dotenv.config();
+
+interface grouParams {
+  frequency?: string;
+  action?: string;
+  channelCode?: string;
+  status?: string;
+  requestType?: string;
+}
+
+export interface logTypes {
+  key_as_string: string;
+  key: number;
+  doc_count: number;
+}
 
 class ElasticSearch {
   private client: Client;
@@ -29,17 +49,21 @@ class ElasticSearch {
 
     for (let i = 0; i < count; i++) {
       const invocationId = uuidv4();
-      const action = actionTypes[Math.floor(Math.random() * actionTypes.length)];
-      const channel = channelCodes[Math.floor(Math.random() * channelCodes.length)];
-      
+      const action =
+        actionTypes[Math.floor(Math.random() * actionTypes.length)];
+      const channel =
+        channelCodes[Math.floor(Math.random() * channelCodes.length)];
+
       const newInitLog = {
         ...initLog,
         invocationId,
         action,
         channelCode: channel,
-        "@timestamp": new Date(Date.now() - Math.floor(Math.random() * 86400000)).toISOString()
+        "@timestamp": new Date(
+          Date.now() - Math.floor(Math.random() * 86400000)
+        ).toISOString(),
       };
-      
+
       logs.push(newInitLog);
       initLogs.push({ invocationId, action, channel });
     }
@@ -47,16 +71,18 @@ class ElasticSearch {
     const finalLogsCount = Math.floor(count * 0.9);
     for (let i = 0; i < finalLogsCount; i++) {
       const { invocationId, action, channel } = initLogs[i];
-      
+
       const newFinalLog = {
         ...finalLog,
         invocationId,
         action,
         channelCode: channel,
         status: statusTypes[Math.floor(Math.random() * statusTypes.length)],
-        "@timestamp": new Date(Date.now() - Math.floor(Math.random() * 86400000)).toISOString()
+        "@timestamp": new Date(
+          Date.now() - Math.floor(Math.random() * 86400000)
+        ).toISOString(),
       };
-      
+
       logs.push(newFinalLog);
     }
 
@@ -79,15 +105,18 @@ class ElasticSearch {
   private async bulkInsert(operations: any[]) {
     const CHUNK_SIZE = 1000;
     const chunks = [];
-    
+
     for (let i = 0; i < operations.length; i += CHUNK_SIZE * 2) {
       chunks.push(operations.slice(i, i + CHUNK_SIZE * 2));
     }
-    
+
     for (const chunk of chunks) {
       const response = await this.client.bulk({ operations: chunk });
       if (response.errors) {
-        console.error('Bulk insert errors:', response.items.filter(item => item.index?.error));
+        console.error(
+          "Bulk insert errors:",
+          response.items.filter((item) => item.index?.error)
+        );
       }
     }
   }
@@ -95,23 +124,151 @@ class ElasticSearch {
   public async indexLog() {
     try {
       await this.checkHealth();
-      
+
       const logs = this.createRandomLog(500000);
-      
-      const operations = logs.flatMap(doc => [
-        { index: { _index: 'logs' } },
-        doc
+
+      const operations = logs.flatMap((doc) => [
+        { index: { _index: "logs" } },
+        doc,
       ]);
 
       await this.bulkInsert(operations);
-      
+
       return { message: `Successfully indexed ${logs.length} logs` };
     } catch (e) {
       console.error("Index log error:", e);
       throw new ElasticError(500, "Index log error");
     }
   }
+
+  private buildLogsQuery({
+    frequency = "5m",
+    action,
+    channelCode,
+    status,
+    requestType,
+  }: grouParams) {
+    try {
+      const query: any = {
+        bool: {
+          must: [
+            {
+              range: {
+                "@timestamp": {
+                  gte: `now-${
+                    Number(frequency.slice(0, -1)) * 30 + frequency.slice(-1)
+                  }`,
+                  lte: "now",
+                },
+              },
+            },
+          ],
+        },
+      };
+
+      if (channelCode) {
+        query.bool.must.push({
+          term: {
+            channelCode: channelCode,
+          },
+        });
+      }
+
+      if (action) {
+        query.bool.must.push({
+          term: {
+            "action.keyword": action,
+          },
+        });
+      }
+
+      if (requestType) {
+        query.bool.must.push({
+          term: {
+            "requestType.keyword": requestType,
+          },
+        });
+      }
+
+      const aggs = {
+        requests_over_time: {
+          date_histogram: {
+            field: "@timestamp",
+            fixed_interval: frequency,
+            min_doc_count: 0,
+            extended_bounds: {
+              min: `now-${
+                Number(frequency.slice(0, -1)) * 30 + frequency.slice(-1)
+              }`,
+              max: "now",
+            },
+          },
+          aggs: {
+            by_channel: {
+              terms: {
+                field: "channelCode.keyword",
+                size: 90,
+              },
+              aggs: {
+                by_action: {
+                  terms: {
+                    field: "action.keyword",
+                    size: 10,
+                  },
+                  aggs: {
+                    by_request_type: {
+                      terms: {
+                        field: "requestTypes.keyword",
+                        size: 10,
+                      },
+                      aggs: {
+                        by_status: {
+                          filter: {
+                            term: {
+                              "requestTypes.keyword": "FinalResponse",
+                            },
+                          },
+                          aggs: {
+                            status_codes: {
+                              terms: {
+                                field: "status",
+                                size: 10,
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      };
+
+      return { query, aggs };
+    } catch (e) {
+      console.error("Build logs query error:", e);
+      throw new ElasticError(500, "Build logs query error");
+    }
+  }
+
+  public async getLogs(params: grouParams) {
+    try {
+      await this.checkHealth();
+
+      const response = await this.client.search({
+        index: "logs",
+        body: this.buildLogsQuery(params),
+      });
+
+      return response.aggregations;
+    } catch (e) {
+      console.error("Get logs error:", e);
+      throw new ElasticError(500, "Get logs error");
+    }
+  }
 }
 
 export const elasticSearchService = new ElasticSearch();
-
