@@ -10,6 +10,7 @@ import {
 } from "../Models/LogModels";
 import { v4 as uuidv4 } from "uuid";
 import { grouParams } from "../Interfaces/LogInterface";
+import { catchError, from, map, of, switchMap } from "rxjs";
 
 dotenv.config();
 
@@ -29,7 +30,7 @@ class ElasticSearch {
       },
     });
   }
-
+  /*
   private createRandomLog(count: number) {
     const logs = [];
     const initLogs = [];
@@ -75,20 +76,25 @@ class ElasticSearch {
 
     return logs;
   }
-
-  private async checkHealth() {
-    try {
-      const health = await this.client.cluster.health();
-
-      if (health.status === "red") {
-        throw new ElasticError(500, "Elasticsearch is not healthy");
-      }
-    } catch (e) {
-      console.error("Health check error:", e);
-      throw new ElasticError(500, "Elasticsearch health check error");
-    }
+*/
+  private checkHealthObs() {
+    return from(this.client.cluster.health()).pipe(
+      map((health) => {
+        if (health.status === "red") {
+          throw new ElasticError(500, "Elasticsearch is not healthy");
+        }
+        return true;
+      }),
+      catchError((error) => {
+        console.error("Health check error:", error);
+        if (error instanceof ElasticError) {
+          throw error;
+        }
+        throw new ElasticError(500, "Elasticsearch health check error");
+      })
+    );
   }
-
+  /*
   private async bulkInsert(operations: any[]) {
     const CHUNK_SIZE = 1000;
     const chunks = [];
@@ -107,7 +113,7 @@ class ElasticSearch {
       }
     }
   }
-
+  
   public async indexLog() {
     try {
       await this.checkHealth();
@@ -127,7 +133,7 @@ class ElasticSearch {
       throw new ElasticError(500, "Index log error");
     }
   }
-
+*/
   private buildLogsQuery({
     frequency = "5m",
     action,
@@ -250,20 +256,24 @@ class ElasticSearch {
     }
   }
 
-  public async getLogs(params: grouParams) {
-    try {
-      await this.checkHealth();
-
-      const response = await this.client.search({
-        index: "logs",
-        body: this.buildLogsQuery(params),
-      });
-
-      return response.aggregations;
-    } catch (e) {
-      console.error("Get logs error:", e);
-      throw new ElasticError(500, "Get logs error");
-    }
+  public getLogsObs(params: grouParams) {
+    return this.checkHealthObs().pipe(
+      switchMap(() => {
+        return from(
+          this.client.search({
+            index: "logs",
+            body: this.buildLogsQuery(params),
+          })
+        ).pipe(map((res) => res.aggregations));
+      }),
+      catchError((error) => {
+        console.error("Get logs error:", error);
+        if (error instanceof ElasticError) {
+          throw error;
+        }
+        throw new ElasticError(500, "Get logs error");
+      })
+    );
   }
 }
 

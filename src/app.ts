@@ -1,19 +1,35 @@
-import express from "express";
+import express, { Request, Response } from "express";
 import bodyParser from "body-parser";
 import { elasticSearchService } from "./Services/ElasticSearchService";
-import { QueryController } from "./Controllers/QueryController";
+import { QueryControllerObs } from "./Controllers/QueryController";
 import promClient from "prom-client";
 
 export const createServer = () => {
   const app = express();
   app.use(bodyParser.json());
-
+  /*
   app.get("/index-log", async (req, res) => {
     const response = await elasticSearchService.indexLog();
     res.status(200).json(response);
   });
-
-  app.post("/query", QueryController);
+*/
+  app.post("/query", (req: Request, res: Response) => {
+    QueryControllerObs(
+      req.body.frequency,
+      req.body.action,
+      req.body.channelCode,
+      req.body.status,
+      req.body.requestType
+    ).subscribe({
+      next: (data) => res.status(200).json(data),
+      error: (error) => {
+        console.error("Query error:", error);
+        res.status(error.status || 500).json({
+          error: error.message || "Internal Server Error",
+        });
+      },
+    });
+  });
 
   app.get("/metrics", async (req, res) => {
     try {

@@ -6,9 +6,9 @@ import {
   pendingLogsGauge,
 } from "./PromClient";
 
-export const UnfinishedLogsService = async (
+export const UnfinishedLogsService = (
   logs: Record<string, AggregationsAggregate> | undefined
-): Promise<finalResult[]> => {
+): finalResult[] => {
   if (!logs?.requests_over_time) {
     return [];
   }
