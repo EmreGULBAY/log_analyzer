@@ -9,22 +9,9 @@ import {
   statusTypes,
 } from "../Models/LogModels";
 import { v4 as uuidv4 } from "uuid";
+import { grouParams } from "../Interfaces/LogInterface";
 
 dotenv.config();
-
-interface grouParams {
-  frequency?: string;
-  action?: string;
-  channelCode?: string;
-  status?: string;
-  requestType?: string;
-}
-
-export interface logTypes {
-  key_as_string: string;
-  key: number;
-  doc_count: number;
-}
 
 class ElasticSearch {
   private client: Client;
@@ -125,7 +112,7 @@ class ElasticSearch {
     try {
       await this.checkHealth();
 
-      const logs = this.createRandomLog(500000);
+      const logs = this.createRandomLog(20000);
 
       const operations = logs.flatMap((doc) => [
         { index: { _index: "logs" } },
@@ -145,7 +132,6 @@ class ElasticSearch {
     frequency = "5m",
     action,
     channelCode,
-    status,
     requestType,
   }: grouParams) {
     try {
@@ -166,18 +152,28 @@ class ElasticSearch {
         },
       };
 
-      if (channelCode) {
+      if (channelCode && channelCode.length > 0) {
         query.bool.must.push({
-          term: {
-            channelCode: channelCode,
+          bool: {
+            should: channelCode.map((code) => ({
+              term: {
+                channelCode: code,
+              },
+            })),
+            minimum_should_match: 1,
           },
         });
       }
 
-      if (action) {
+      if (action && action.length > 0) {
         query.bool.must.push({
-          term: {
-            "action.keyword": action,
+          bool: {
+            should: action.map((act) => ({
+              term: {
+                "action.keyword": act,
+              },
+            })),
+            minimum_should_match: 1,
           },
         });
       }

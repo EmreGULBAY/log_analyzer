@@ -4,8 +4,7 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "nodemon src/server.ts",
-    "metrics": "ts-node src/prom-server.ts"
+    "start": "nodemon src/server.ts"
   },
   "keywords": [],
   "author": "",
@@ -14,6 +13,7 @@
   "dependencies": {
     "@elastic/elasticsearch": "^8.15.1",
     "body-parser": "^1.20.3",
+    "chart.js": "^4.4.6",
     "dotenv": "^16.4.5",
     "elasticsearch": "^16.7.3",
     "express": "^4.21.1",
