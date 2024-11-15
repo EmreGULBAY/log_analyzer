@@ -1,7 +1,6 @@
 import { Request, Response } from "express";
 import { elasticSearchService } from "../Services/ElasticSearchService";
 import { UnfinishedLogsService } from "../Services/QueryService";
-import { VisualizeLogs } from "../Services/ChartService";
 import { catchError, combineLatest, map, of, switchMap } from "rxjs";
 
 export const QueryControllerObs = (
@@ -21,11 +20,11 @@ export const QueryControllerObs = (
           status,
           requestType,
         })
-        .pipe(map((logs) => UnfinishedLogsService(logs)));
-    }),
-    map((logs) => {
-      const canvas = VisualizeLogs(logs);
-      return { chartConfig: canvas, rawData: logs };
+        .pipe(
+          map((logs) => {
+            return { rawData: UnfinishedLogsService(logs) };
+          })
+        );
     }),
     catchError((error) => {
       return of({ error: error.message });

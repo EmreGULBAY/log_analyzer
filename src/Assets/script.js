@@ -27,7 +27,7 @@ async function fetchData() {
       body: JSON.stringify(filters),
     });
 
-    const { chartConfig, rawData } = await response.json();
+    const { rawData } = await response.json();
 
     const labels = rawData.map((item) => item.key);
     const unfinishedData = rawData.map((item) => item.unfinished);
