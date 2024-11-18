@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { elasticSearchService } from "../Services/ElasticSearchService";
+import { getElasticSearchService } from "../Services/ElasticSearchService";
 import { UnfinishedLogsService } from "../Services/QueryService";
 import { catchError, combineLatest, map, of, switchMap } from "rxjs";
 
@@ -12,7 +12,7 @@ export const QueryControllerObs = (
 ) => {
   return of(null).pipe(
     switchMap(() => {
-      return elasticSearchService
+      return getElasticSearchService()
         .getLogsObs({
           frequency,
           action,

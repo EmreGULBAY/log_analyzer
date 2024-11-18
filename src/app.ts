@@ -1,6 +1,6 @@
 import express, { Request, Response } from "express";
 import bodyParser from "body-parser";
-import { elasticSearchService } from "./Services/ElasticSearchService";
+import { getElasticSearchService } from "./Services/ElasticSearchService";
 import { QueryControllerObs } from "./Controllers/QueryController";
 import promClient from "prom-client";
 
@@ -9,7 +9,7 @@ export const createServer = () => {
   app.use(bodyParser.json());
   /*
   app.get("/index-log", async (req, res) => {
-    const response = await elasticSearchService.indexLog();
+    const response = await getElasticSearchService().indexLog();
     res.status(200).json(response);
   });
 */

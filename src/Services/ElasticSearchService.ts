@@ -277,4 +277,12 @@ class ElasticSearch {
   }
 }
 
-export const elasticSearchService = new ElasticSearch();
+let elasticSearchService: ElasticSearch | undefined = undefined;
+export const getElasticSearchService = () => {
+  if (!elasticSearchService) {
+    elasticSearchService = new ElasticSearch();
+    return elasticSearchService;
+  }
+
+  return elasticSearchService;
+};
